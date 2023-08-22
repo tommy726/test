@@ -127,7 +127,7 @@ function handleDateClick(clickInfo) {
   }
   today.value = clickInfo.dateStr;
 
-  // modalRef.value.openModal();
+  modalRef.value.openModal();
   console.log(clickInfo);
 }
 

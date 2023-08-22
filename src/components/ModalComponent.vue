@@ -14,14 +14,12 @@ const props = defineProps({
   },
   selectData: {
     type: Object
-  },
+  }
 });
 
 const title = ref("");
 const allDay = ref(true);
-const startDate = computed(() => {
-  return props.today;
-});
+const startDate = ref(new Date().toISOString().replace(/T.*$/, ""));
 const startHour = ref("00");
 const startTime = ref("00");
 const endHour = ref("00");
