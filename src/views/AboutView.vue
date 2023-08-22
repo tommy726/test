@@ -27,50 +27,50 @@ const calendarOptions = ref({
       text: "button",
       click: () => {
         console.log("Hello");
-      },
+      }
     },
     toggleWeekends: {
       text: "週末",
       click: () => {
         calendarOptions.value.weekends = !calendarOptions.value.weekends;
-      },
+      }
     },
     clearButton: {
       text: "清空",
       click: () => {
         const events = calendarApi.getEvents();
-        events.forEach((event) => event.remove());
-      },
+        events.forEach(event => event.remove());
+      }
     },
     addEvent: {
       text: "+",
       click: () => {
         openModal();
-      },
-    },
+      }
+    }
   },
   headerToolbar: {
     left: "title",
     center: "",
-    right: "today prev,next",
+    right: "today prev,next"
   },
   footerToolbar: {
     left: "toggleWeekends clearButton",
     center: "addEvent",
-    right: "dayGridMonth,timeGridWeek,timeGridDay",
+    right: "dayGridMonth,timeGridWeek,timeGridDay"
   },
 
   initialView: "dayGridMonth",
-  initialEvents: INITIAL_EVENTS, // alternatively, use the `events` setting to fetch from a feed
+  // initialEvents: INITIAL_EVENTS, // alternatively, use the `events` setting to fetch from a feed
   editable: true,
   selectable: true,
   selectMirror: true,
   dayMaxEvents: true,
   weekends: true,
-  select: handleDateSelect,
+  // select: handleDateSelect,
   eventClick: handleEventClick,
   eventsSet: handleEvents,
-  dateClick: handleDateClick,
+  dateClick: handleDateClick
   /* you can update a remote database when these fire:
         eventAdd:
         eventChange:
@@ -80,9 +80,93 @@ const calendarOptions = ref({
 
 const currentEvents = ref([]);
 const today = ref(new Date().toISOString().replace(/T.*$/, ""));
+const selectData = ref();
 
-function handleDateSelect(selectInfo) {
-  console.log(selectInfo);
+// function handleDateSelect(selectInfo) {
+//   // selectData.value = {
+//   //   start: selectInfo.startStr,
+//   //   end: selectInfo.endStr,
+//   //   allDay: selectInfo.allDay
+//   // };
+//   // modalRef.value.openModal();
+//   console.log(selectInfo)
+// }
+function handleDateClick(clickInfo) {
+  if (clickInfo.allDay) {
+    selectData.value = {
+      title: "",
+      start: clickInfo.dateStr,
+      end: clickInfo.dateStr,
+      allDay: clickInfo.allDay
+    };
+  } else {
+    // selectData.value = {
+    //   title: "",
+    //   start: "00",
+    //   end: "00",
+    //   allDay: true
+    // };
+    const regex = /(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})/;
+    const match = clickInfo.dateStr.match(regex);
+
+    if (match) {
+      const datePart = match[1]; // 提取日期部分，例如："2023-08-23"
+      const hourPart = match[2]; // 提取小时部分，例如："09"
+      const minutePart = match[3]; // 提取分钟部分，例如："30"
+
+      console.log("日期部分:", datePart);
+      console.log("小时部分:", hourPart);
+      console.log("分钟部分:", minutePart);
+      selectData.value = {
+        title: "",
+        start: clickInfo.dateStr,
+        end: clickInfo.dateStr,
+        allDay: clickInfo.allDay
+      };
+    }
+  }
+  today.value = clickInfo.dateStr;
+
+  // modalRef.value.openModal();
+  console.log(clickInfo);
+}
+
+function handleEvents(events) {
+  currentEvents.value = events;
+}
+
+const modalRef = ref();
+function openModal() {
+  today.value = new Date().toISOString().replace(/T.*$/, "");
+  selectData.value = {
+    startHour: "00",
+    startTime: "00",
+    endHour: "00",
+    endTime: "00",
+    allDay: true
+  };
+  modalRef.value.openModal();
+}
+
+function addEvent(data) {
+  // console.log(data);
+  let start;
+  let end;
+  if (!data.title) return;
+  if (!data.allDay) {
+    start = `${data.startDate}T${data.startHour}:${data.startTime}`;
+    end = `${data.startDate}T${data.endHour}:${data.endTime}`;
+  } else {
+    start = data.startDate;
+    end = data.startDate;
+  }
+  calendarApi.addEvent({
+    id: createEventId(),
+    title: data.title,
+    start: start,
+    end: end,
+    allDay: data.allDay
+  });
 }
 
 function handleEventClick(clickInfo) {
@@ -94,41 +178,15 @@ function handleEventClick(clickInfo) {
     clickInfo.event.remove();
   }
 }
-
-function handleDateClick(clickInfo) {
-  today.value = clickInfo.dateStr;
-  modalRef.value.openModal();
-
-  // let title = prompt("Please enter a new title for your event");
-  // if (title) {
-  //   calendarApi.addEvent({
-  //     id: createEventId(),
-  //     title,
-  //     // start: clickInfo.dateStr,
-  //     start: `${clickInfo.dateStr}T08:00:00`,
-  //     end: `${clickInfo.dateStr}T16:00:00`,
-  //     // allDay: true,
-  //   });
-  // }
-}
-
-function handleEvents(events) {
-  currentEvents.value = events;
-}
-
-const modalRef = ref();
-function openModal() {
-  today.value = new Date().toISOString().replace(/T.*$/, "");
-  modalRef.value.openModal();
-}
-
-function addEvent(data) {
-  console.log(data);
-}
 </script>
 
 <template>
-  <Modal ref="modalRef" :today="today" @addEvent="addEvent" />
+  <Modal
+    ref="modalRef"
+    :today="today"
+    :selectData="selectData"
+    @addEvent="addEvent"
+  />
   <div class="demo-app container">
     <div class="demo-app-main">
       <FullCalendar
@@ -204,6 +262,12 @@ b {
 .fc {
   max-width: 1100px;
   margin: 0 auto;
+}
+.fc .fc-toolbar-title {
+  font-size: 18px;
+}
+.fc-daygrid-event-harness {
+  overflow: hidden;
 }
 /* 
 .fc-toolbar {
