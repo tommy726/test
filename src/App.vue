@@ -1,7 +1,8 @@
 <template>
   <nav>
-    <router-link to="/">Home</router-link> |
-    <router-link to="/about">FullCalendar</router-link>
+    <router-link to="/">Origin</router-link> |
+    <router-link to="/custom">Custom</router-link> |
+    <router-link to="/lightbox">LightBox</router-link>
   </nav>
   <router-view/>
 </template>
