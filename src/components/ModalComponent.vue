@@ -10,20 +10,22 @@ for (let i = 0; i < 24; i++) {
 }
 const props = defineProps({
   today: {
-    type: String,
+    type: String
   },
+  selectData: {
+    type: Object
+  }
 });
 
 const title = ref("");
 const allDay = ref(true);
-const startDate = computed(() => {
-  return props.today;
-});
+const startDate = ref(new Date().toISOString().replace(/T.*$/, ""));
 const startHour = ref("00");
 const startTime = ref("00");
 const endHour = ref("00");
 const endTime = ref("00");
 const modalRef = ref(null);
+const titleRef = ref(null);
 let modal;
 onMounted(() => {
   modal = new Modal(modalRef.value);
@@ -31,10 +33,12 @@ onMounted(() => {
 
 function openModal() {
   modal.show();
+  titleRef.value.focus();
 }
+
 // eslint-disable-next-line no-undef
 defineExpose({
-  openModal,
+  openModal
 });
 
 const emit = defineEmits(["addEvent"]);
@@ -47,7 +51,7 @@ function addEvent() {
     startHour: startHour.value,
     startTime: startTime.value,
     endHour: endHour.value,
-    endTime: endTime.value,
+    endTime: endTime.value
   };
   emit("addEvent", data);
 }
@@ -78,6 +82,7 @@ function addEvent() {
           <div class="d-flex align-items-center mb-1">
             <label for="title" class="col-form-label me-2">標題</label>
             <input
+              ref="titleRef"
               v-model="title"
               type="text"
               id="title"
