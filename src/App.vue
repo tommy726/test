@@ -2,9 +2,10 @@
   <nav>
     <router-link to="/">Origin</router-link> |
     <router-link to="/custom">Custom</router-link> |
+    <router-link to="/version2">Version2</router-link> |
     <router-link to="/lightbox">LightBox</router-link>
   </nav>
-  <router-view/>
+  <router-view />
 </template>
 
 <style lang="scss">
@@ -14,6 +15,15 @@
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
+  .btn {
+    font-size: 12px;
+  }
+  .fc {
+    font-size: 12px;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 16px;
+  }
 }
 
 nav {

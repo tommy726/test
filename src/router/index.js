@@ -13,6 +13,11 @@ const routes = [
     component: () => import("../views/CustomView.vue"),
   },
   {
+    path: "/version2",
+    name: "version2",
+    component: () => import("../views/Version2View.vue"),
+  },
+  {
     path: "/lightbox",
     name: "lightbox",
     component: () => import("../views/LightboxView.vue"),

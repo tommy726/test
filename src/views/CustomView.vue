@@ -1,11 +1,13 @@
 <script setup>
 import VueDatePicker from "@/components/DatePickerComponent.vue";
-import { ref, onMounted, onUnmounted, onBeforeUnmount } from "vue";
+import { ref, onMounted, onBeforeUnmount } from "vue";
 import { Modal } from "bootstrap";
 import FullCalendar from "@fullcalendar/vue3";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import multiMonthPlugin from "@fullcalendar/multimonth";
+import listPlugin from "@fullcalendar/list";
 import { INITIAL_EVENTS, createEventId } from "@/event-utils";
 import esLocale from "@fullcalendar/core/locales/zh-tw";
 import bootstrap5Plugin from "@fullcalendar/bootstrap5";
@@ -17,12 +19,11 @@ const modalRef = ref(null);
 let modal;
 const titleInputRef = ref(null);
 
-function inputFocus() {
-  titleInputRef.value.focus();
-}
-
-function saveEventsToLocalStorage(events) {
-  localStorage.setItem("calendarEvents", JSON.stringify(events));
+function saveEventsToLocalStorage() {
+  localStorage.setItem(
+    "calendarEvents",
+    JSON.stringify(calendarApi.getEvents())
+  );
 }
 
 function getEventsFromLocalStorage() {
@@ -32,6 +33,11 @@ function getEventsFromLocalStorage() {
   } else {
     return [];
   }
+}
+
+function inputFocus() {
+  titleInputRef.value.focus();
+  titleInputRef.value.click();
 }
 
 onMounted(() => {
@@ -46,12 +52,16 @@ onBeforeUnmount(() => {
   modalRef.value.removeEventListener("shown.bs.modal", inputFocus);
 });
 
-onUnmounted(() => {
-  saveEventsToLocalStorage(calendarApi.getEvents());
-});
 const calendarOptions = ref({
   locale: esLocale,
-  plugins: [bootstrap5Plugin, dayGridPlugin, timeGridPlugin, interactionPlugin],
+  plugins: [
+    bootstrap5Plugin,
+    listPlugin,
+    dayGridPlugin,
+    timeGridPlugin,
+    interactionPlugin,
+    multiMonthPlugin
+  ],
   height: "100%",
   themeSystem: "bootstrap5",
   customButtons: {
@@ -59,32 +69,49 @@ const calendarOptions = ref({
       text: "週末",
       click: () => {
         calendarOptions.value.weekends = !calendarOptions.value.weekends;
-      },
+      }
     },
     clearButton: {
       text: "清空",
       click: () => {
         const events = calendarApi.getEvents();
-        events.forEach((event) => event.remove());
-      },
+        events.forEach(event => event.remove());
+      }
     },
     newEvent: {
       text: "+",
       click: () => {
         initData();
         openModal(true);
-      },
+      }
     },
+    multiMonthYear: {
+      text: "年",
+      click: () => {
+        calendarApi.changeView("multiMonthYear");
+      }
+    },
+    listWeekView: {
+      text: "清單",
+      click: () => {
+        const { type } = calendarApi.view;
+        if (type !== "listWeek") {
+          calendarApi.changeView("listWeek");
+        } else {
+          calendarApi.changeView("dayGridMonth");
+        }
+      }
+    }
   },
   headerToolbar: {
     left: "title",
     center: "",
-    right: "today prev,next",
+    right: "clearButton listWeekView toggleWeekends"
   },
   footerToolbar: {
-    left: "toggleWeekends clearButton",
+    left: "prev,today,next",
     center: "newEvent",
-    right: "dayGridMonth,timeGridWeek,timeGridDay",
+    right: "multiMonthYear,dayGridMonth,timeGridWeek,timeGridDay"
   },
 
   initialView: "dayGridMonth",
@@ -93,16 +120,14 @@ const calendarOptions = ref({
   selectable: true,
   selectMirror: true,
   dayMaxEvents: true,
-  weekends: true,
+  weekends: false,
   select: handleDateSelect,
   eventClick: handleEventClick,
   eventsSet: handleEvents,
   dateClick: handleDateClick,
-  /* you can update a remote database when these fire:
-        eventAdd:
-        eventChange:
-        eventRemove:
-        */
+  eventAdd: saveEventsToLocalStorage,
+  eventRemove: saveEventsToLocalStorage
+  // eventChange: saveEventsToLocalStorage,
 });
 
 const currentEvents = ref([]);
@@ -122,12 +147,12 @@ const allDay = ref();
 const startData = ref({
   date: "",
   hour: "00",
-  minute: "00",
+  minute: "00"
 });
 const endData = ref({
   date: "",
   hour: "00",
-  minute: "00",
+  minute: "00"
 });
 
 // 取得日期/小時/分鐘
@@ -239,7 +264,7 @@ function initData() {
   const init = {
     date: today,
     hour: "00",
-    minute: "00",
+    minute: "00"
   };
   startData.value = { ...init };
   endData.value = { ...init };
@@ -266,7 +291,7 @@ function newEvent(eventId) {
     title: title.value,
     start: start,
     end: end,
-    allDay: allDay.value,
+    allDay: allDay.value
   });
 
   modal.hide();
@@ -283,7 +308,7 @@ function newEvent(eventId) {
         ref="fullCalendarRef"
       >
         <template v-slot:eventContent="arg">
-          <b>{{ arg.timeText }}</b>
+          <!-- <b>{{ arg.timeText }}</b> -->
           <i>{{ arg.event.title }}</i>
         </template>
       </FullCalendar>
@@ -323,7 +348,7 @@ function newEvent(eventId) {
         </div>
         <div class="modal-body text-nowrap">
           <div class="d-flex align-items-center mb-1">
-            <label for="title" class="col-form-label me-2">標題</label>
+            <label for="title" class="col-form-label me-2">代辦事項</label>
             <input
               ref="titleInputRef"
               v-model="title"
@@ -472,7 +497,7 @@ b {
   /* display: flex; */
   min-height: 100%;
   font-family: Arial, Helvetica Neue, Helvetica, sans-serif;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .demo-app-sidebar {
@@ -498,7 +523,7 @@ b {
 }
 
 .fc .fc-toolbar-title {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .fc-daygrid-event-harness {
@@ -510,7 +535,10 @@ b {
 }
 
 .dp__main {
-  width: 130px;
+  max-width: 134px;
+}
+.dp__input {
+  padding: 6px 12px;
 }
 /* 
 .fc-toolbar {

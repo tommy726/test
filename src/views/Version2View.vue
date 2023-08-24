@@ -6,6 +6,8 @@ import FullCalendar from "@fullcalendar/vue3";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import multiMonthPlugin from "@fullcalendar/multimonth";
+import listPlugin from "@fullcalendar/list";
 import { INITIAL_EVENTS, createEventId } from "@/event-utils";
 import esLocale from "@fullcalendar/core/locales/zh-tw";
 import bootstrap5Plugin from "@fullcalendar/bootstrap5";
@@ -15,15 +17,74 @@ const fullCalendarRef = ref(null);
 let calendarApi;
 const modalRef = ref(null);
 let modal;
+const titleInputRef = ref(null);
 
+function saveEventsToLocalStorage() {
+  localStorage.setItem(
+    "calendarEvents",
+    JSON.stringify(calendarApi.getEvents())
+  );
+}
+
+function getEventsFromLocalStorage() {
+  const eventData = localStorage.getItem("calendarEvents");
+  if (eventData) {
+    return JSON.parse(eventData);
+  } else {
+    return [];
+  }
+}
+
+function inputFocus() {
+  titleInputRef.value.focus();
+  titleInputRef.value.click();
+}
+
+let debounceTimeout;
 onMounted(() => {
   calendarApi = fullCalendarRef.value.getApi();
+  const savedEvents = getEventsFromLocalStorage();
+  calendarApi.addEventSource(savedEvents);
   modal = new Modal(modalRef.value);
+  modalRef.value.addEventListener("shown.bs.modal", inputFocus);
+
+  // 處理手機左右滑動
+  const calendarEl = fullCalendarRef.value.$el;
+  let startX, startY;
+
+  calendarEl.addEventListener("touchstart", e => {
+    startX = e.changedTouches[0].pageX;
+    startY = e.changedTouches[0].pageY;
+  });
+
+  calendarEl.addEventListener("touchmove", e => {
+    const deltaX = e.changedTouches[0].pageX - startX;
+    const deltaY = e.changedTouches[0].pageY - startY;
+
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(() => {
+        if (deltaX > 30) {
+          calendarApi.prev();
+        } else if (deltaX < -30) {
+          calendarApi.next();
+        }
+      }, 200);
+    }
+  });
 });
 
 const calendarOptions = ref({
   locale: esLocale,
-  plugins: [bootstrap5Plugin, dayGridPlugin, timeGridPlugin, interactionPlugin],
+  plugins: [
+    bootstrap5Plugin,
+    listPlugin,
+    dayGridPlugin,
+    timeGridPlugin,
+    interactionPlugin,
+    multiMonthPlugin
+  ],
+  initialView: "dayGridMonth",
   height: "100%",
   themeSystem: "bootstrap5",
   customButtons: {
@@ -31,50 +92,63 @@ const calendarOptions = ref({
       text: "週末",
       click: () => {
         calendarOptions.value.weekends = !calendarOptions.value.weekends;
-      },
+      }
     },
     clearButton: {
       text: "清空",
       click: () => {
         const events = calendarApi.getEvents();
-        events.forEach((event) => event.remove());
-      },
+        events.forEach(event => event.remove());
+      }
     },
     newEvent: {
       text: "+",
       click: () => {
         initData();
         openModal(true);
-      },
+      }
     },
+    multiMonthYear: {
+      text: "年",
+      click: () => {
+        calendarApi.changeView("multiMonthYear");
+      }
+    },
+    listWeekView: {
+      text: "清單",
+      click: () => {
+        const { type } = calendarApi.view;
+        if (type !== "listWeek") {
+          calendarApi.changeView("listWeek");
+        } else {
+          calendarApi.changeView("dayGridMonth");
+        }
+      }
+    }
   },
   headerToolbar: {
     left: "title",
     center: "",
-    right: "today prev,next",
+    right: "clearButton listWeekView toggleWeekends"
   },
   footerToolbar: {
-    left: "toggleWeekends clearButton",
+    left: "prev,today,next",
     center: "newEvent",
-    right: "dayGridMonth,timeGridWeek,timeGridDay",
+    right: "multiMonthYear,dayGridMonth,timeGridWeek,timeGridDay"
   },
-
-  initialView: "dayGridMonth",
-  initialEvents: INITIAL_EVENTS, // alternatively, use the `events` setting to fetch from a feed
+  // initialEvents: INITIAL_EVENTS, // alternatively, use the `events` setting to fetch from a feed
   editable: true,
   selectable: true,
   selectMirror: true,
   dayMaxEvents: true,
-  weekends: true,
+  weekends: false,
   select: handleDateSelect,
   eventClick: handleEventClick,
   eventsSet: handleEvents,
   dateClick: handleDateClick,
-  /* you can update a remote database when these fire:
-        eventAdd:
-        eventChange:
-        eventRemove:
-        */
+  eventAdd: saveEventsToLocalStorage,
+  eventRemove: saveEventsToLocalStorage
+  // eventChange: saveEventsToLocalStorage,
 });
 
 const currentEvents = ref([]);
@@ -87,153 +161,111 @@ for (let i = 0; i < 24; i++) {
   let formattedNumber = i.toString().padStart(2, "0");
   hourArray.push(formattedNumber);
 }
+
 const today = new Date().toISOString().replace(/T.*$/, "");
 const title = ref("");
 const allDay = ref();
-const startTimeDetail = ref({
-  startDate: "",
-  startHour: "00",
-  startMinute: "00",
+const startData = ref({
+  date: "",
+  hour: "00",
+  minute: "00"
 });
-const endTimeDetail = ref({
-  endDate: "",
-  endHour: "00",
-  endMinute: "00",
+const endData = ref({
+  date: "",
+  hour: "00",
+  minute: "00"
 });
-const startDate = ref();
-const startHour = ref("00");
-const startMinute = ref("00");
-const endDate = ref();
-const endHour = ref("00");
-const endTime = ref("00");
-const titleInputRef = ref(null);
 
-function getTimeDetail(data) {
+// 取得日期/小時/分鐘
+function getTimeData(data) {
   const regex = /(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})/;
   const match = data.match(regex);
 
-  const datePart = match[1];
-  const hourPart = match[2];
-  const minutePart = match[3];
-  return { datePart, hourPart, minutePart };
+  const date = match[1];
+  const hour = match[2];
+  const minute = match[3];
+  return { date, hour, minute };
+}
+
+// 轉換時區
+function convertTime(time) {
+  const hours = time.getHours() + 8;
+  time.setHours(hours);
+  return getTimeData(time.toISOString());
 }
 
 let handleEvent;
 function handleEventClick(clickInfo) {
-  console.log(clickInfo.event.id);
-
-  title.value = clickInfo.event.title;
-
-  const startTime = clickInfo.event.start;
-  const hours = startTime.getHours() + 8;
-  startTime.setHours(hours);
-  const startInfo = getTimeDetail(startTime.toISOString());
-  const {
-    datePart: startDatePart,
-    hourPart: startHourPart,
-    minutePart: startMinutePart,
-  } = startInfo;
-  allDay.value = clickInfo.event.allDay;
-  startDate.value = startDatePart;
-  startHour.value = startHourPart;
-  startMinute.value = startMinutePart;
-  if (clickInfo.event.end) {
-    const endTime = clickInfo.event.end;
-    const hours = endTime.getHours() + 8;
-    endTime.setHours(hours);
-    const endInfo = getTimeDetail(endTime.toISOString());
-    const {
-      datePart: endDatePart,
-      hourPart: endHourPart,
-      minutePart: endMinutePart,
-    } = endInfo;
-    endDate.value = endDatePart;
-    endHour.value = endHourPart;
-    endTime.value = endMinutePart;
+  const { type } = calendarApi.view;
+  if (type === "dayGridMonth" || type === "multiMonthYear") {
+    calendarApi.changeView("timeGridDay", clickInfo.event.start);
+    calendarApi.gotoDate(clickInfo.event.start);
   } else {
-    endDate.value = startDatePart;
-    endHour.value = startHourPart;
-    endTime.value = startMinutePart;
+    title.value = clickInfo.event.title;
+    allDay.value = clickInfo.event.allDay;
+    handleEvent = clickInfo.event;
+
+    const startTime = new Date(clickInfo.event.start);
+    startData.value = convertTime(startTime);
+
+    if (clickInfo.event.end) {
+      const endTime = new Date(clickInfo.event.end);
+      endData.value = convertTime(endTime);
+    } else {
+      endData.value = getTimeData(startTime.toISOString());
+    }
+    openModal(false);
   }
-
-  handleEvent = clickInfo.event;
-  openModal(false);
-}
-
-function removeEvent(event) {
-  event.remove();
-  modal.hide();
-}
-
-function editEvent(event) {
-  event.remove();
-  newEvent(event.id);
 }
 
 function handleDateSelect(selectInfo) {
+  if (innerWidth < 992) return;
+
   allDay.value = selectInfo.allDay;
   title.value = "";
   if (allDay.value) {
-    startDate.value = selectInfo.startStr;
-    endDate.value = selectInfo.endStr;
+    startData.value.date = selectInfo.startStr;
+    endData.value.date = selectInfo.endStr;
   }
   if (!allDay.value) {
-    const startInfo = getTimeDetail(selectInfo.startStr);
-    const endInfo = getTimeDetail(selectInfo.endStr);
-
-    const {
-      datePart: startDatePart,
-      hourPart: startHourPart,
-      minutePart: startMinutePart,
-    } = startInfo;
-
-    const {
-      datePart: endDatePart,
-      hourPart: endHourPart,
-      minutePart: endMinutePart,
-    } = endInfo;
-
-    startDate.value = startDatePart;
-    startHour.value = startHourPart;
-    startMinute.value = startMinutePart;
-    endDate.value = endDatePart;
-    endHour.value = endHourPart;
-    endTime.value = endMinutePart;
+    startData.value = getTimeData(selectInfo.startStr);
+    endData.value = getTimeData(selectInfo.endStr);
   }
   openModal(true);
 }
 
 function handleDateClick(clickInfo) {
-  allDay.value = clickInfo.allDay;
+  if (innerWidth >= 992) return;
 
+  title.value = "";
+  allDay.value = clickInfo.allDay;
   if (allDay.value) {
     initData();
-    startDate.value = clickInfo.dateStr;
-    endDate.value = clickInfo.dateStr;
+    startData.value.date = clickInfo.dateStr;
+    endData.value.date = clickInfo.dateStr;
   } else {
-    const { datePart, hourPart, minutePart } = getTimeDetail(clickInfo.dateStr);
-    startDate.value = datePart;
-    startHour.value = hourPart;
-    startMinute.value = minutePart;
-    endDate.value = datePart;
-    if (minutePart === "00") {
-      endHour.value = hourPart;
-      endTime.value = "30";
+    startData.value = getTimeData(clickInfo.dateStr);
+    endData.value.date = startData.value.date;
+    if (startData.value.minute === "00") {
+      endData.value.hour = startData.value.hour;
+      endData.value.minute = "30";
     } else {
-      endHour.value = (parseInt(hourPart) + 1).toString().padStart(2, "0");
-      if (endHour.value === "24") {
-        endHour.value = "00";
+      endData.value.hour = (parseInt(startData.value.hour) + 1)
+        .toString()
+        .padStart(2, "0");
+      if (endData.value.hour === "24") {
+        endData.value.hour = "00";
       }
-      endTime.value = "00";
+      endData.value.time = "00";
     }
   }
-  title.value = "";
   openModal(true);
 }
 
 const modalTitle = ref("");
 const modalEvent = ref("");
-function openModal(isNew = true) {
+
+async function openModal(isNew = true) {
   if (isNew) {
     modalTitle.value = "新增事件";
     modalEvent.value = "new";
@@ -242,44 +274,58 @@ function openModal(isNew = true) {
     modalEvent.value = "edit";
   }
   modal.show();
-  // titleInputRef.value.focus();
 }
 
 function initData() {
   title.value = "";
   allDay.value = true;
-  startDate.value = today;
-  startHour.value = "00";
-  startMinute.value = "00";
-  endDate.value = today;
-  endHour.value = "00";
-  endTime.value = "00";
+  const init = {
+    date: today,
+    hour: "00",
+    minute: "00"
+  };
+  startData.value = { ...init };
+  endData.value = { ...init };
 }
 
 function newEvent(eventId) {
   if (!title.value) return;
-
   if (!eventId) {
     eventId = createEventId();
   }
+
   let start;
   let end;
   if (allDay.value) {
-    start = startDate.value;
-    end = endDate.value;
+    start = startData.value.date;
+    end = endData.value.date;
   } else {
-    start = `${startDate.value}T${startHour.value}:${startMinute.value}`;
-    end = `${endDate.value}T${endHour.value}:${endTime.value}`;
+    start = `${startData.value.date}T${startData.value.hour}:${startData.value.minute}`;
+    end = `${endData.value.date}T${endData.value.hour}:${endData.value.minute}`;
   }
+
   calendarApi.addEvent({
     id: eventId,
     title: title.value,
     start: start,
     end: end,
-    allDay: allDay.value,
+    allDay: allDay.value
   });
+
   modal.hide();
   initData();
+}
+
+function removeEvent() {
+  if (handleEvent) {
+    handleEvent.remove();
+  }
+  modal.hide();
+}
+
+function editEvent() {
+  removeEvent();
+  newEvent(handleEvent.id);
 }
 </script>
 
@@ -293,6 +339,7 @@ function newEvent(eventId) {
       >
         <template v-slot:eventContent="arg">
           <b>{{ arg.timeText }}</b>
+          <br v-if="arg.view.type === 'timeGridWeek'" />
           <i>{{ arg.event.title }}</i>
         </template>
       </FullCalendar>
@@ -332,7 +379,7 @@ function newEvent(eventId) {
         </div>
         <div class="modal-body text-nowrap">
           <div class="d-flex align-items-center mb-1">
-            <label for="title" class="col-form-label me-2">標題</label>
+            <label for="title" class="col-form-label me-2">代辦事項</label>
             <input
               ref="titleInputRef"
               v-model="title"
@@ -344,12 +391,12 @@ function newEvent(eventId) {
           </div>
           <div class="d-flex align-items-center mb-1">
             <label class="col-form-label me-2">開始日期</label>
-            <VueDatePicker v-model="startDate" :format="startDate" />
+            <VueDatePicker v-model="startData.date" :format="startData.date" />
           </div>
           <div class="d-flex align-items-center mb-1">
             <div class="d-flex">
               <label class="col-form-label me-2">結束日期</label>
-              <VueDatePicker v-model="endDate" :format="endDate" />
+              <VueDatePicker v-model="endData.date" :format="endData.date" />
             </div>
             <div class="form-check ms-2">
               <input
@@ -366,7 +413,7 @@ function newEvent(eventId) {
               <label class="col-form-label me-2">開始時間</label>
               <div class="d-flex align-items-center">
                 <select
-                  v-model="startHour"
+                  v-model="startData.hour"
                   class="form-select"
                   aria-label="Default select example"
                 >
@@ -380,7 +427,7 @@ function newEvent(eventId) {
                 </select>
                 ：
                 <select
-                  v-model="startMinute"
+                  v-model="startData.minute"
                   class="form-select"
                   aria-label="Default select example"
                 >
@@ -393,7 +440,7 @@ function newEvent(eventId) {
               <label class="col-form-label me-2">結束時間</label>
               <div class="d-flex align-items-center">
                 <select
-                  v-model="endHour"
+                  v-model="endData.hour"
                   class="form-select"
                   aria-label="Default select example"
                 >
@@ -407,7 +454,7 @@ function newEvent(eventId) {
                 </select>
                 ：
                 <select
-                  v-model="endTime"
+                  v-model="endData.minute"
                   class="form-select"
                   aria-label="Default select example"
                 >
@@ -433,10 +480,9 @@ function newEvent(eventId) {
           </template>
           <template v-else>
             <button
-              @click="removeEvent(handleEvent)"
+              @click="removeEvent"
               type="button"
               class="btn btn-danger me-auto"
-              data-bs-dismiss="modal"
             >
               刪除
             </button>
@@ -447,11 +493,7 @@ function newEvent(eventId) {
             >
               關閉
             </button>
-            <button
-              @click="editEvent(handleEvent)"
-              type="button"
-              class="btn btn-primary"
-            >
+            <button @click="editEvent" type="button" class="btn btn-primary">
               編輯
             </button>
           </template>
@@ -486,7 +528,6 @@ b {
   /* display: flex; */
   min-height: 100%;
   font-family: Arial, Helvetica Neue, Helvetica, sans-serif;
-  font-size: 14px;
 }
 
 .demo-app-sidebar {
@@ -512,7 +553,7 @@ b {
 }
 
 .fc .fc-toolbar-title {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .fc-daygrid-event-harness {
@@ -524,7 +565,10 @@ b {
 }
 
 .dp__main {
-  width: 130px;
+  max-width: 134px;
+}
+.dp__input {
+  padding: 6px 12px;
 }
 /* 
 .fc-toolbar {
