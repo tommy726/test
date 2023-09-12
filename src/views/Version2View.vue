@@ -327,10 +327,31 @@ function editEvent() {
   removeEvent();
   newEvent(handleEvent.id);
 }
+
+const fileInput = ref(null);
+function openFile() {
+  fileInput.value.click();
+}
+
+function handleFileUpload() {
+  console.log("change");
+}
 </script>
 
 <template>
   <div class="demo-app container">
+    <button @click="openFile">click</button>
+    <label for="file">
+      <input
+        type="file"
+        ref="fileInput"
+        @change="handleFileUpload"
+        accept="image/*"
+        id="file"
+        class="d-none"
+        multiple
+      />
+    </label>
     <div class="demo-app-main">
       <FullCalendar
         class="demo-app-calendar"
